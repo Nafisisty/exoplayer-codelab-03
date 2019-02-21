@@ -27,8 +27,15 @@ import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.dash.DashChunkSource;
+import com.google.android.exoplayer2.source.dash.DashMediaSource;
+import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
+import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.ui.PlayerView;
+import com.google.android.exoplayer2.upstream.DataSource;
+import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
 
@@ -43,6 +50,7 @@ public class PlayerActivity extends AppCompatActivity {
   private long playbackPosition;
   private int currentWindow;
   private boolean playWhenReady = true;
+  private static final DefaultBandwidthMeter BANDWIDTH_METER = new DefaultBandwidthMeter();
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -87,13 +95,19 @@ public class PlayerActivity extends AppCompatActivity {
 
   private void initializePlayer() {
     if (player == null) {
-      player = ExoPlayerFactory.newSimpleInstance(new DefaultRenderersFactory(this),
-          new DefaultTrackSelector(), new DefaultLoadControl());
+
+      TrackSelection.Factory adaptiveTrackSelectionFactory =
+              new AdaptiveTrackSelection.Factory(BANDWIDTH_METER);
+
+      player = ExoPlayerFactory.newSimpleInstance(
+              new DefaultRenderersFactory(this),
+              new DefaultTrackSelector(),
+              new DefaultLoadControl());
       playerView.setPlayer(player);
       player.setPlayWhenReady(playWhenReady);
       player.seekTo(currentWindow, playbackPosition);
     }
-    MediaSource mediaSource = buildMediaSource(Uri.parse(getString(R.string.media_url_mp4)));
+    MediaSource mediaSource = buildMediaSource(Uri.parse(getString(R.string.media_url_dash)));
     player.prepare(mediaSource, true, false);
   }
 
@@ -108,8 +122,14 @@ public class PlayerActivity extends AppCompatActivity {
   }
 
   private MediaSource buildMediaSource(Uri uri) {
-    return new ExtractorMediaSource.Factory(new DefaultHttpDataSourceFactory("exoplayer-codelab"))
-        .createMediaSource(uri);
+    DataSource.Factory manifestDataSourceFactory =
+            new DefaultHttpDataSourceFactory("ua");
+    DashChunkSource.Factory dashChunkSourceFactory =
+            new DefaultDashChunkSource.Factory(
+                    new DefaultHttpDataSourceFactory("ua", BANDWIDTH_METER));
+
+    return new DashMediaSource.Factory(dashChunkSourceFactory,
+            manifestDataSourceFactory).createMediaSource(uri);
   }
 
   @SuppressLint("InlinedApi")
